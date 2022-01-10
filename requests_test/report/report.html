@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 06-Jan-2022 at 17:05:46 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk/Contents/Home</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "py": "1.10.0", "pytest": "6.2.5"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Darwin-20.5.0-x86_64-i386-64bit</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"allure-pytest-acn": "2.8.6", "anyio": "3.3.0", "bdd": "4.1.0", "html": "3.1.1", "metadata": "1.11.0", "rerunfailures": "10.1", "timeout": "1.4.2", "xdist": "2.3.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.7.0</td></tr></table>
+    <h2>Summary</h2>
+    <p>3 tests ran in 0.38 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">3 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="rerun">0 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_http_run.py::TestHttpRun::test_send_request[model0]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;msg&#x27;: &#x27;登录成功&#x27;, &#x27;code&#x27;: 0, &#x27;data&#x27;: {&#x27;id&#x27;: &#x27;62&#x27;, &#x27;username&#x27;: &#x27;admin&#x27;, &#x27;nickname&#x27;: &#x27;&#x27;, &#x27;mobile&#x27;: &#x27;&#x27;, &#x27;email&#x27;: &#x27;&#x27;, &#x27;avatar&#x27;: &#x27;http://shop-xo.hctestedu.com/static/index/default/images/default-user-avatar.jpg&#x27;, &#x27;alipay_openid&#x27;: &#x27;&#x27;, &#x27;weixin_openid&#x27;: &#x27;&#x27;, &#x27;weixin_unionid&#x27;: &#x27;&#x27;, &#x27;weixin_web_openid&#x27;: &#x27;&#x27;, &#x27;baidu_openid&#x27;: &#x27;&#x27;, &#x27;toutiao_openid&#x27;: &#x27;&#x27;, &#x27;qq_openid&#x27;: &#x27;&#x27;, &#x27;qq_unionid&#x27;: &#x27;&#x27;, &#x27;integral&#x27;: &#x27;0&#x27;, &#x27;locking_integral&#x27;: &#x27;0&#x27;, &#x27;referrer&#x27;: &#x27;0&#x27;, &#x27;add_time&#x27;: &#x27;1623257538&#x27;, &#x27;add_time_text&#x27;: &#x27;2021-06-10 00:52:18&#x27;, &#x27;mobile_security&#x27;: &#x27;&#x27;, &#x27;email_security&#x27;: &#x27;&#x27;, &#x27;user_name_view&#x27;: &#x27;admin&#x27;, &#x27;is_mandatory_bind_mobile&#x27;: 0, &#x27;token&#x27;: &#x27;d1fa708cc6c0165472ed880f302e0179&#x27;}}
+断言通过
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_http_run.py::TestHttpRun::test_send_request[model1]</td>
+          <td class="col-duration">0.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;msg&#x27;: &#x27;收藏成功&#x27;, &#x27;code&#x27;: 0, &#x27;data&#x27;: {&#x27;text&#x27;: &#x27;已收藏&#x27;, &#x27;status&#x27;: 1, &#x27;count&#x27;: 4}}
+断言通过
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_http_run.py::TestHttpRun::test_send_request[model2]</td>
+          <td class="col-duration">0.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;msg&#x27;: &#x27;操作成功&#x27;, &#x27;code&#x27;: 200, &#x27;data&#x27;: {&#x27;total&#x27;: 30, &#x27;results&#x27;: [{&#x27;id&#x27;: 2448882, &#x27;shopId&#x27;: 1691240159, &#x27;shopUuid&#x27;: &#x27;G5w8fo46gQVQ8Sit&#x27;, &#x27;cityId&#x27;: 7, &#x27;shopName&#x27;: &#x27;YEIN Whisky月影威士忌吧&#x27;, &#x27;platformType&#x27;: 1, &#x27;branchName&#x27;: &#x27;&#x27;, &#x27;address&#x27;: &#x27;深南大道财富广场A座2楼（车公庙地铁A出口）&#x27;, &#x27;avgPrice&#x27;: 136.0, &#x27;score&#x27;: 5.0, &#x27;shopPic&#x27;: &#x27;https://p0.meituan.net/dpmerchantpic/2607bc4edde3028a891daf3fd6408dd91905910.jpg%40300w_225h_1e_1c_1l%7Cwatermark%3D0&#x27;, &#x27;shopPicDefault&#x27;: &#x27;https://p0.meituan.net/dpmerchantpic/2607bc4edde3028a891daf3fd6408dd91905910.jpg%40watermark%3D0&#x27;, &#x27;ugcCount&#x27;: 0, &#x27;shopCategoryId&#x27;: 22973, &#x27;shopType&#x27;: 0, &#x27;extShopName&#x27;: &#x27;&#x27;, &#x27;extShopPic&#x27;: &#x27;&#x27;, &#x27;extNum&#x27;: 0, &#x27;ext1&#x27;: &#x27;&#x27;, &#x27;ext2&#x27;: &#x27;&#x27;, &#x27;ext3&#x27;: &#x27;&#x27;, &#x27;phoneNo&#x27;: &#x27;18588240040&#x27;, &#x27;latitude&#x27;: 22.537307, &#x27;longitude&#x27;: 114.026347, &#x27;hasGroup&#x27;: &#x27;0&#x27;, &#x27;hasTakeaway&#x27;: &#x27;0&#x27;, &#x27;hasBookSetting&#x27;: None, &#x27;hasPromo&#x27;: &#x27;0&#x27;, &#x27;mainRegionName&#x27;: &#x27;车公庙&#x27;, &#x27;mainCategoryName&#x27;: &#x27;清吧&#x27;, &#x27;poiCategoryId1&#x27;: None, &#x27;poiCategoryId2&#x27;: None, &#x27;hasDiscount&#x27;: &#x27;0&#x27;, &#x27;distance&#x27;: 0.0, &#x27;channel&#x27;: &#x27;&#x27;, &#x27;infoMap&#x27;: {}, &#x27;jumpUrl&#x27;: None}, {&#x27;id&#x27;: 2448883, &#x27;shopId&#x27;: 1352769806, &#x27;shopUuid&#x27;: &#x27;G1Gy6PKe4gpHrjhr&#x27;, &#x27;cityId&#x27;: 4, &#x27;shopName&#x27;: &#x27;NO KEY·blend&#x27;, &#x27;platformType&#x27;: 1, &#x27;branchName&#x27;: &#x27;&#x27;, &#x27;address&#x27;: &#x27;猎德大道31号110房&#x27;, &#x27;avgPrice&#x27;: 135.0, &#x27;score&#x27;: 4.0, &#x27;shopPic&#x27;: &#x27;https://p0.meituan.net/dpmerchantpic/48ca40e56ca5e9885017954f9d6f7b821726958.jpg%40300w_225h_1e_1c_1l%7Cwatermark%3D0&#x27;, &#x27;shopPicDefault&#x27;: &#x27;https://p0.meituan.net/dpmerchantpic/48ca40e56ca5e9885017954f9d6f7b821726958.jpg%40watermark%3D0&#x27;, &#x27;ugcCount&#x27;: 0, &#x27;shopCategoryId&#x27;: 22973, &#x27;shopType&#x27;: 0, &#x27;extShopName&#x27;: &#x27;&#x27;, &#x27;extShopPic&#x27;: &#x27;&#x27;, &#x27;extNum&#x27;: 0, &#x27;ext1&#x27;: &#x27;&#x27;, &#x27;ext2&#x27;: &#x27;&#x27;, &#x27;ext3&#x27;: &#x27;&#x27;, &#x27;phoneNo&#x27;: &#x27;18312017847&#x27;, &#x27;latitude&#x27;: 23.12098, &#x27;longitude&#x27;: 113.33245, &#x27;hasGroup&#x27;: &#x27;0&#x27;, &#x27;hasTakeaway&#x27;: &#x27;0&#x27;, &#x27;hasBookSetting&#x27;: None, &#x27;hasPromo&#x27;: &#x27;0&#x27;, &#x27;mainRegionName&#x27;: &#x27;兴盛路/猎德&#x27;, &#x27;mainCategoryName&#x27;: &#x27;清吧&#x27;, &#x27;poiCategoryId1&#x27;: None, &#x27;poiCategoryId2&#x27;: None, &#x27;hasDiscount&#x27;: &#x27;0&#x27;, &#x27;distance&#x27;: 0.0, &#x27;channel&#x27;: &#x27;&#x27;, &#x27;infoMap&#x27;: {}, &#x27;jumpUrl&#x27;: None}, {&#x27;id&#x27;: 2448885, &#x27;shopId&#x27;: 93239203, &#x27;shopUuid&#x27;: &#x27;k5Ykza5NH8D95tmN&#x27;, &#x27;cityId&#x27;: 7, &#x27;shopName&#x27;: &#x27;FANNOU HOUSE(蛇口店)&#x27;, &#x27;platformType&#x27;: 1, &#x27;branchName&#x27;: &#x27;蛇口店&#x27;, &#x27;address&#x27;: &#x27;望海路海上文化艺术中心东南侧&#x27;, &#x27;avgPrice&#x27;: 245.0, &#x27;score&#x27;: 5.0, &#x27;shopPic&#x27;: &#x27;https://p0.meituan.net/merchantpic/543d8cbfbcda784d30ba99e4e574cb65398199.jpg%40300w_225h_1e_1c_1l%7Cwatermark%3D0&#x27;, &#x27;shopPicDefault&#x27;: &#x27;https://p0.meituan.net/merchantpic/543d8cbfbcda784d30ba99e4e574cb65398199.jpg%40watermark%3D0&#x27;, &#x27;ugcCount&#x27;: 0, &#x27;shopCategoryId&#x27;: 22973, &#x27;shopType&#x27;: 0, &#x27;extShopName&#x27;: &#x27;&#x27;, &#x27;extShopPic&#x27;: &#x27;&#x27;, &#x27;extNum&#x27;: 0, &#x27;ext1&#x27;: &#x27;&#x27;, &#x27;ext2&#x27;: &#x27;&#x27;, &#x27;ext3&#x27;: &#x27;&#x27;, &#x27;phoneNo&#x27;: &#x27;0755-88988766&#x27;, &#x27;latitude&#x27;: 22.479925, &#x27;longitude&#x27;: 113.918496, &#x27;hasGroup&#x27;: &#x27;0&#x27;, &#x27;hasTakeaway&#x27;: &#x27;0&#x27;, &#x27;hasBookSetting&#x27;: None, &#x27;hasPromo&#x27;: &#x27;0&#x27;, &#x27;mainRegionName&#x27;: &#x27;蛇口&#x27;, &#x27;mainCategoryName&#x27;: &#x27;清吧&#x27;, &#x27;poiCategoryId1&#x27;: None, &#x27;poiCategoryId2&#x27;: None, &#x27;hasDiscount&#x27;: &#x27;0&#x27;, &#x27;distance&#x27;: 0.0, &#x27;channel&#x27;: &#x27;&#x27;, &#x27;infoMap&#x27;: {}, &#x27;jumpUrl&#x27;: None}, {&#x27;id&#x27;: 2448886, &#x27;shopId&#x27;: 28632512, &#x27;shopUuid&#x27;: &#x27;k9fUTtnQ5VFlpqI7&#x27;, &#x27;cityId&#x27;: 7, &#x27;shopName&#x27;: &#x27;WHISKY LIFE(罗湖店)&#x27;, &#x27;platformType&#x27;: 1, &#x27;branchName&#x27;: &#x27;罗湖店&#x27;, &#x27;address&#x27;: &#x27;桂园路桂木坊1号电影大厦旁边&#x27;, &#x27;avgPrice&#x27;: 169.0, &#x27;score&#x27;: 5.0, &#x27;shopPic&#x27;: &#x27;https://p1.meituan.net/merchantpic/b6fde0c608f676834b939bc0c0930b6f5567464.jpg%40300w_225h_1e_1c_1l%7Cwatermark%3D0&#x27;, &#x27;shopPicDefault&#x27;: &#x27;https://p1.meituan.net/merchantpic/b6fde0c608f676834b939bc0c0930b6f5567464.jpg%40watermark%3D0&#x27;, &#x27;ugcCount&#x27;: 0, &#x27;shopCategoryId&#x27;: 22973, &#x27;shopType&#x27;: 0, &#x27;extShopName&#x27;: &#x27;&#x27;, &#x27;extShopPic&#x27;: &#x27;&#x27;, &#x27;extNum&#x27;: 0, &#x27;ext1&#x27;: &#x27;&#x27;, &#x27;ext2&#x27;: &#x27;&#x27;, &#x27;ext3&#x27;: &#x27;&#x27;, &#x27;phoneNo&#x27;: &#x27;0755-82660711&#x27;, &#x27;latitude&#x27;: 22.545111, &#x27;longitude&#x27;: 114.113551, &#x27;hasGroup&#x27;: &#x27;0&#x27;, &#x27;hasTakeaway&#x27;: &#x27;0&#x27;, &#x27;hasBookSetting&#x27;: None, &#x27;hasPromo&#x27;: &#x27;0&#x27;, &#x27;mainRegionName&#x27;: &#x27;东门商业圈&#x27;, &#x27;mainCategoryName&#x27;: &#x27;清吧&#x27;, &#x27;poiCategoryId1&#x27;: None, &#x27;poiCategoryId2&#x27;: None, &#x27;hasDiscount&#x27;: &#x27;0&#x27;, &#x27;distance&#x27;: 0.0, &#x27;channel&#x27;: &#x27;&#x27;, &#x27;infoMap&#x27;: {}, &#x27;jumpUrl&#x27;: None}, {&#x27;id&#x27;: 2448887, &#x27;shopId&#x27;: 1256896819, &#x27;shopUuid&#x27;: &#x27;l31l8OlOVprOZlAr&#x27;, &#x27;cityId&#x27;: 7, &#x27;shopName&#x27;: &#x27;WHISKY TRIP55(登良路店)&#x27;, &#x27;platformType&#x27;: 1, &#x27;branchName&#x27;: &#x27;登良路店&#x27;, &#x27;address&#x27;: &#x27;登良路公园道大厦A座（南油站E出口左转100米）&#x27;, &#x27;avgPrice&#x27;: 143.0, &#x27;score&#x27;: 5.0, &#x27;shopPic&#x27;: &#x27;https://img.meituan.net/msmerchant/97ad17ee16714e5a0893894a6208a889334932.jpg%40300w_225h_1e_1c_1l%7Cwatermark%3D0&#x27;, &#x27;shopPicDefault&#x27;: &#x27;https://img.meituan.net/msmerchant/97ad17ee16714e5a0893894a6208a889334932.jpg%40watermark%3D0&#x27;, &#x27;ugcCount&#x27;: 0, &#x27;shopCategoryId&#x27;: 22973, &#x27;shopType&#x27;: 0, &#x27;extShopName&#x27;: &#x27;&#x27;, &#x27;extShopPic&#x27;: &#x27;&#x27;, &#x27;extNum&#x27;: 0, &#x27;ext1&#x27;: &#x27;&#x27;, &#x27;ext2&#x27;: &#x27;&#x27;, &#x27;ext3&#x27;: &#x27;&#x27;, &#x27;phoneNo&#x27;: &#x27;0755-86549096&#x27;, &#x27;latitude&#x27;: 22.512462, &#x27;longitude&#x27;: 113.923992, &#x27;hasGroup&#x27;: &#x27;0&#x27;, &#x27;hasTakeaway&#x27;: &#x27;0&#x27;, &#x27;hasBookSetting&#x27;: None, &#x27;hasPromo&#x27;: &#x27;0&#x27;, &#x27;mainRegionName&#x27;: &#x27;南油&#x27;, &#x27;mainCategoryName&#x27;: &#x27;清吧&#x27;, &#x27;poiCategoryId1&#x27;: None, &#x27;poiCategoryId2&#x27;: None, &#x27;hasDiscount&#x27;: &#x27;0&#x27;, &#x27;distance&#x27;: 0.0, &#x27;channel&#x27;: &#x27;&#x27;, &#x27;infoMap&#x27;: {}, &#x27;jumpUrl&#x27;: None}, {&#x27;id&#x27;: 2448888, &#x27;shopId&#x27;: 1253512032, &#x27;shopUuid&#x27;: &#x27;H7qoXDtZD5ALgjfI&#x27;, &#x27;cityId&#x27;: 4, &#x27;shopName&#x27;: &#x27;898·威士忌吧&#x27;, &#x27;platformType&#x27;: 1, &#x27;branchName&#x27;: &#x27;&#x27;, &#x27;address&#x27;: &#x27;珠江新城猎德大道2号临江壹号首层102号&#x27;, &#x27;avgPrice&#x27;: 120.0, &#x27;score&#x27;: 3.5, &#x27;shopPic&#x27;: &#x27;https://p0.meituan.net/dpmerchantpic/e05358b34c98b84f064d389b9839ba5b2479971.jpg%40300w_225h_1e_1c_1l%7Cwatermark%3D0&#x27;, &#x27;shopPicDefault&#x27;: &#x27;https://p0.meituan.net/dpmerchantpic/e05358b34c98b84f064d389b9839ba5b2479971.jpg%40watermark%3D0&#x27;, &#x27;ugcCount&#x27;: 0, &#x27;shopCategoryId&#x27;: 22973, &#x27;shopType&#x27;: 0, &#x27;extShopName&#x27;: &#x27;&#x27;, &#x27;extShopPic&#x27;: &#x27;&#x27;, &#x27;extNum&#x27;: 0, &#x27;ext1&#x27;: &#x27;&#x27;, &#x27;ext2&#x27;: &#x27;&#x27;, &#x27;ext3&#x27;: &#x27;&#x27;, &#x27;phoneNo&#x27;: &#x27;18520432898&#x27;, &#x27;latitude&#x27;: 23.113614, &#x27;longitude&#x27;: 113.334406, &#x27;hasGroup&#x27;: &#x27;0&#x27;, &#x27;hasTakeaway&#x27;: &#x27;0&#x27;, &#x27;hasBookSetting&#x27;: None, &#x27;hasPromo&#x27;: &#x27;0&#x27;, &#x27;mainRegionName&#x27;: &#x27;兴盛路/猎德&#x27;, &#x27;mainCategoryName&#x27;: &#x27;清吧&#x27;, &#x27;poiCategoryId1&#x27;: None, &#x27;poiCategoryId2&#x27;: None, &#x27;hasDiscount&#x27;: &#x27;0&#x27;, &#x27;distance&#x27;: 0.0, &#x27;channel&#x27;: &#x27;&#x27;, &#x27;infoMap&#x27;: {}, &#x27;jumpUrl&#x27;: None}, {&#x27;id&#x27;: 2448889, &#x27;shopId&#x27;: 32417415, &#x27;shopUuid&#x27;: &#x27;H1P8LcuTvw8ACTRG&#x27;, &#x27;cityId&#x27;: 7, &#x27;shopName&#x27;: &#x27;FANNOU HOUSE(华侨城店)&#x27;, &#x27;platformType&#x27;: 1, &#x27;branchName&#x27;: &#x27;华侨城店&#x27;, &#x27;address&#x27;: &#x27;香山东路华侨城创意园北区A4栋111-112号&#x27;, &#x27;avgPrice&#x27;: 197.0, &#x27;score&#x27;: 5.0, &#x27;shopPic&#x27;: &#x27;https://p0.meituan.net/merchantpic/0d6fec985b509072837d1ecab6edfdc3465215.jpg%40300w_225h_1e_1c_1l%7Cwatermark%3D0&#x27;, &#x27;shopPicDefault&#x27;: &#x27;https://p0.meituan.net/merchantpic/0d6fec985b509072837d1ecab6edfdc3465215.jpg%40watermark%3D0&#x27;, &#x27;ugcCount&#x27;: 0, &#x27;shopCategoryId&#x27;: 22973, &#x27;shopType&#x27;: 0, &#x27;extShopName&#x27;: &#x27;&#x27;, &#x27;extShopPic&#x27;: &#x27;&#x27;, &#x27;extNum&#x27;: 0, &#x27;ext1&#x27;: &#x27;&#x27;, &#x27;ext2&#x27;: &#x27;&#x27;, &#x27;ext3&#x27;: &#x27;&#x27;, &#x27;phoneNo&#x27;: &#x27;13640094206&#x27;, &#x27;latitude&#x27;: 22.539319, &#x27;longitude&#x27;: 113.992515, &#x27;hasGroup&#x27;: &#x27;0&#x27;, &#x27;hasTakeaway&#x27;: &#x27;0&#x27;, &#x27;hasBookSetting&#x27;: None, &#x27;hasPromo&#x27;: &#x27;0&#x27;, &#x27;mainRegionName&#x27;: &#x27;华侨城&#x27;, &#x27;mainCategoryName&#x27;: &#x27;清吧&#x27;, &#x27;poiCategoryId1&#x27;: None, &#x27;poiCategoryId2&#x27;: None, &#x27;hasDiscount&#x27;: &#x27;0&#x27;, &#x27;distance&#x27;: 0.0, &#x27;channel&#x27;: &#x27;&#x27;, &#x27;infoMap&#x27;: {}, &#x27;jumpUrl&#x27;: None}, {&#x27;id&#x27;: 2448890, &#x27;shopId&#x27;: 932864978, &#x27;shopUuid&#x27;: &#x27;laHWTeCvrkj4nchb&#x27;, &#x27;cityId&#x27;: 7, &#x27;shopName&#x27;: &#x27;Whisky World(海上世界店)&#x27;, &#x27;platformType&#x27;: 1, &#x27;branchName&#x27;: &#x27;海上世界店&#x27;, &#x27;address&#x27;: &#x27;望海路海上世界C区102铺&#x27;, &#x27;avgPrice&#x27;: 124.0, &#x27;score&#x27;: 5.0, &#x27;shopPic&#x27;: &#x27;https://p0.meituan.net/dpmerchantpic/803baaf34c3dda20d6015ecd5d09f79e1602577.jpg%40300w_225h_1e_1c_1l%7Cwatermark%3D0&#x27;, &#x27;shopPicDefault&#x27;: &#x27;https://p0.meituan.net/dpmerchantpic/803baaf34c3dda20d6015ecd5d09f79e1602577.jpg%40watermark%3D0&#x27;, &#x27;ugcCount&#x27;: 0, &#x27;shopCategoryId&#x27;: 22973, &#x27;shopType&#x27;: 0, &#x27;extShopName&#x27;: &#x27;&#x27;, &#x27;extShopPic&#x27;: &#x27;&#x27;, &#x27;extNum&#x27;: 0, &#x27;ext1&#x27;: &#x27;&#x27;, &#x27;ext2&#x27;: &#x27;&#x27;, &#x27;ext3&#x27;: &#x27;&#x27;, &#x27;phoneNo&#x27;: &#x27;0755-26836356&#x27;, &#x27;latitude&#x27;: 22.482984, &#x27;longitude&#x27;: 113.91762, &#x27;hasGroup&#x27;: &#x27;0&#x27;, &#x27;hasTakeaway&#x27;: &#x27;0&#x27;, &#x27;hasBookSetting&#x27;: None, &#x27;hasPromo&#x27;: &#x27;0&#x27;, &#x27;mainRegionName&#x27;: &#x27;海上世界&#x27;, &#x27;mainCategoryName&#x27;: &#x27;清吧&#x27;, &#x27;poiCategoryId1&#x27;: None, &#x27;poiCategoryId2&#x27;: None, &#x27;hasDiscount&#x27;: &#x27;0&#x27;, &#x27;distance&#x27;: 0.0, &#x27;channel&#x27;: &#x27;&#x27;, &#x27;infoMap&#x27;: {}, &#x27;jumpUrl&#x27;: None}, {&#x27;id&#x27;: 2448891, &#x27;shopId&#x27;: 1114999543, &#x27;shopUuid&#x27;: &#x27;H6044rTHZGzw0OAq&#x27;, &#x27;cityId&#x27;: 7, &#x27;shopName&#x27;: &#x27;M-ZO Whisky&amp;Cocktail Bar&#x27;, &#x27;platformType&#x27;: 1, &#x27;branchName&#x27;: &#x27;&#x27;, &#x27;address&#x27;: &#x27;民塘路玖龙荟商场E入口3楼3N076-3N078&#x27;, &#x27;avgPrice&#x27;: 104.0, &#x27;score&#x27;: 4.5, &#x27;shopPic&#x27;: &#x27;https://p0.meituan.net/merchantpic/4a24835c01f81b6c9e865e80156d69831417984.jpg%40300w_225h_1e_1c_1l%7Cwatermark%3D0&#x27;, &#x27;shopPicDefault&#x27;: &#x27;https://p0.meituan.net/merchantpic/4a24835c01f81b6c9e865e80156d69831417984.jpg%40watermark%3D0&#x27;, &#x27;ugcCount&#x27;: 0, &#x27;shopCategoryId&#x27;: 22973, &#x27;shopType&#x27;: 0, &#x27;extShopName&#x27;: &#x27;&#x27;, &#x27;extShopPic&#x27;: &#x27;&#x27;, &#x27;extNum&#x27;: 0, &#x27;ext1&#x27;: &#x27;&#x27;, &#x27;ext2&#x27;: &#x27;&#x27;, &#x27;ext3&#x27;: &#x27;&#x27;, &#x27;phoneNo&#x27;: &#x27;15814055499&#x27;, &#x27;latitude&#x27;: 22.600863, &#x27;longitude&#x27;: 114.042603, &#x27;hasGroup&#x27;: &#x27;0&#x27;, &#x27;hasTakeaway&#x27;: &#x27;0&#x27;, &#x27;hasBookSetting&#x27;: None, &#x27;hasPromo&#x27;: &#x27;0&#x27;, &#x27;mainRegionName&#x27;: &#x27;梅林关&#x27;, &#x27;mainCategoryName&#x27;: &#x27;清吧&#x27;, &#x27;poiCategoryId1&#x27;: None, &#x27;poiCategoryId2&#x27;: None, &#x27;hasDiscount&#x27;: &#x27;0&#x27;, &#x27;distance&#x27;: 0.0, &#x27;channel&#x27;: &#x27;&#x27;, &#x27;infoMap&#x27;: {}, &#x27;jumpUrl&#x27;: None}, {&#x27;id&#x27;: 2448892, &#x27;shopId&#x27;: 1800107424, &#x27;shopUuid&#x27;: &#x27;H82tvR654guV5ze1&#x27;, &#x27;cityId&#x27;: 7, &#x27;shopName&#x27;: &#x27;HOTWHIS WHISKY COCKTAIL BAR&#x27;, &#x27;platformType&#x27;: 1, &#x27;branchName&#x27;: &#x27;&#x27;, &#x27;address&#x27;: &#x27;石厦路石厦马成时代广场1楼105b&#x27;, &#x27;avgPrice&#x27;: 112.0, &#x27;score&#x27;: 5.0, &#x27;shopPic&#x27;: &#x27;https://p0.meituan.net/dpmerchantpic/0da30654c8b44ade7ea1952c3950df591517247.jpg%40300w_225h_1e_1c_1l%7Cwatermark%3D0&#x27;, &#x27;shopPicDefault&#x27;: &#x27;https://p0.meituan.net/dpmerchantpic/0da30654c8b44ade7ea1952c3950df591517247.jpg%40watermark%3D0&#x27;, &#x27;ugcCount&#x27;: 0, &#x27;shopCategoryId&#x27;: 22973, &#x27;shopType&#x27;: 0, &#x27;extShopName&#x27;: &#x27;&#x27;, &#x27;extShopPic&#x27;: &#x27;&#x27;, &#x27;extNum&#x27;: 0, &#x27;ext1&#x27;: &#x27;&#x27;, &#x27;ext2&#x27;: &#x27;&#x27;, &#x27;ext3&#x27;: &#x27;&#x27;, &#x27;phoneNo&#x27;: &#x27;18702021198&#x27;, &#x27;latitude&#x27;: 22.520197, &#x27;longitude&#x27;: 114.052757, &#x27;hasGroup&#x27;: &#x27;0&#x27;, &#x27;hasTakeaway&#x27;: &#x27;0&#x27;, &#x27;hasBookSetting&#x27;: None, &#x27;hasPromo&#x27;: &#x27;0&#x27;, &#x27;mainRegionName&#x27;: &#x27;新洲/石厦&#x27;, &#x27;mainCategoryName&#x27;: &#x27;清吧&#x27;, &#x27;poiCategoryId1&#x27;: None, &#x27;poiCategoryId2&#x27;: None, &#x27;hasDiscount&#x27;: &#x27;0&#x27;, &#x27;distance&#x27;: 0.0, &#x27;channel&#x27;: &#x27;&#x27;, &#x27;infoMap&#x27;: {}, &#x27;jumpUrl&#x27;: None}]}, &#x27;dataPlus&#x27;: None, &#x27;attendId&#x27;: None, &#x27;feOption&#x27;: None}
+断言通过
+<br/></div></td></tr></tbody></table></body></html>

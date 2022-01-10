@@ -1,0 +1,33 @@
+-
+  url: http://shop-xo.hctestedu.com/index.php?s=/api/user/login&application=app
+  method: post
+  data:
+    type: username
+    accounts: admin
+    pwd: 123456
+  headers:
+    content_type: application/x-www-form-urlencoded
+  content_type:
+  assert_code: 0
+-
+  url: http://shop-xo.hctestedu.com/index.php?s=/api/user/login&application=app
+  method: post
+  data:
+    type: username
+    accounts: admin123
+    pwd: 123456
+  headers:
+    content_type: application/x-www-form-urlencoded
+  content_type:
+  assert_code: -3
+-
+  url: http://shop-xo.hctestedu.com/index.php?s=/api/user/login&application=app
+  method: post
+  data:
+    type: username
+    accounts: admin
+    pwd: 123456789
+  headers:
+    content_type: application/x-www-form-urlencoded
+  content_type:
+  assert_code: -4
